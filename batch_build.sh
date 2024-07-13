@@ -24,14 +24,21 @@ NC="\033[0m" # reset color
 
 # handle flags
 isDirty=0
+isClean=0
 isInt=0
 isUploadOnly=0
 isOTAOnly=0
+isResume=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -d)
             # dirty
             isDirty=1
+            shift
+        ;;
+        -c)
+            # clean build (skip the confirmation)
+            isClean=1
             shift
         ;;
         -i)
@@ -47,6 +54,11 @@ while [[ $# -gt 0 ]]; do
         -o)
             # ota and notify only
             isOTAOnly=1
+            shift
+        ;;
+        -r)
+            # resume
+            isResume=1
             shift
         ;;
     esac
@@ -185,22 +197,13 @@ if [[ $isInt == 1 ]]; then
     done 9< $DEVICE_FILE
 fi
 
-isResume=0
 if [ ! -f $STATUS_FILE ]; then
     touch $STATUS_FILE
 else
-    if [[ ! $(cat $STATUS_FILE | grep "all done") ]]; then
-        echo -n "Resume previous job? [y]/n > "
-        read -r ans
-        if [[ $ans != "n" ]]; then
-            isResume=1
-        else
-            rm $STATUS_FILE
-            touch $STATUS_FILE
-        fi
-    else
+    if [[ $(cat $STATUS_FILE | grep -q "all done") ]] || [[ $isResume != 1 ]]; then
         rm $STATUS_FILE
         touch $STATUS_FILE
+        isResume=0
     fi
 fi
 
@@ -213,9 +216,11 @@ n=0
 targets=()
 . build/envsetup.sh
 if [[ $isDirty != 1 ]] && [[ $isUploadOnly != 1 ]] && [[ $isOTAOnly != 1 ]]; then
-    echo -e "Press enter to ${RED}clean build${NC} and start. Ctrl+C to cancel"
-    echo -en "If you don't want to clean pass the -d flag"
-    read -r ans
+    if [[ $isClean != 1 ]]; then
+        echo -e "Press enter to ${RED}clean build${NC} and start. Ctrl+C to cancel"
+        echo -en "If you don't want to clean pass the -d flag"
+        read -r ans
+    fi
     lunch yaap_guacamole-user
     make clobber
 fi

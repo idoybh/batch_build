@@ -22,6 +22,16 @@ YELLOW="\033[1;33m" # For input requests
 BLUE="\033[1;36m" # For info
 NC="\033[0m" # reset color
 
+# functions
+
+# shellcheck disable=SC2317
+function tg_clean()
+{
+  ./telegramSend.sh --config $TG_STATUS_CONF "Batch build was stopped / canceled externally"
+  ./telegramSend.sh --unpin --tmp $tgTmp --config $TG_STATUS_CONF " "
+  exit 1
+}
+
 # handle flags
 isDirty=0
 isClean=0
@@ -292,6 +302,7 @@ for DEVICE in "${targets[@]}"; do
 
     if [[ $firstStatus == 1 ]]; then
         firstStatus=0
+        trap tg_clean SIGINT
         ./telegramSend.sh --pin --tmp $tgTmp --config $TG_STATUS_CONF "Current status:\n${statStr}"
     else
         ./telegramSend.sh --edit --tmp $tgTmp --config $TG_STATUS_CONF "Current status:\n${statStr}"
@@ -450,6 +461,7 @@ echo
 echo -e "Built ${BLUE}${ec}${NC} out of ${BLUE}${n}${NC} targets"
 ./telegramSend.sh --config $TG_STATUS_CONF "Batch build done. Built ${ec}/${n} targets"
 ./telegramSend.sh --unpin --tmp $tgTmp --config $TG_STATUS_CONF " "
+trap - SIGINT
 
 if [[ $didError == 0 ]]; then
     echo -e "$(date)\nall done\n" >> $STATUS_FILE

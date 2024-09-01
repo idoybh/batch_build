@@ -93,12 +93,7 @@ while read -r -u9 DEVICE; do
     # ignore comments
     [[ ${DEVICE:0:1} == '#' ]] && continue
     # ignore flags
-    if echo "$DEVICE" | grep -q "\-u"; then
-        DEVICE=$(echo "$DEVICE" | sed 's/ //g' | sed 's/-u//g')
-    fi
-    if [[ -n $(echo "$DEVICE" | grep "\-o") ]]; then
-        DEVICE=$(echo "$DEVICE" | sed 's/ //g' | sed 's/-o//g')
-    fi
+    DEVICE=$(echo "$DEVICE" | cut -d " " -f 1)
     if [ ! -f "${DEVICE}.conf" ]; then
         isInt=1
         echo -e "${RED}No ${DEVICE}.conf file. Forcing interactive${NC}"
@@ -132,12 +127,7 @@ if [[ $isInt == 1 ]]; then
         # ignore comments
         [[ ${DEVICE:0:1} == '#' ]] && continue
         # ignore flags
-        if echo "$DEVICE" | grep -q "\-u"; then
-            DEVICE=$(echo "$DEVICE" | sed 's/ //g' | sed 's/-u//g')
-        fi
-        if [[ -n $(echo "$DEVICE" | grep "\-o") ]]; then
-            DEVICE=$(echo "$DEVICE" | sed 's/ //g' | sed 's/-o//g')
-        fi
+        DEVICE=$(echo "$DEVICE" | cut -d " " -f 1)
 
         # info files
         if [[ ! -f "./changelogs/${DEVICE}.info" ]] || [[ $isEditDI == 'y' ]]; then
@@ -176,12 +166,8 @@ if [[ $isInt == 1 ]]; then
         # ignore comments
         [[ ${DEVICE:0:1} == '#' ]] && continue
         # ignore flags
-        if echo "$DEVICE" | grep -q "\-u"; then
-            DEVICE=$(echo "$DEVICE" | sed 's/ //g' | sed 's/-u//g')
-        fi
-        if [[ -n $(echo "$DEVICE" | grep "\-o") ]]; then
-            DEVICE=$(echo "$DEVICE" | sed 's/ //g' | sed 's/-o//g')
-        fi
+        DEVICE=$(echo "$DEVICE" | cut -d " " -f 1)
+
         cFile="./changelogs/${DEVICE}.txt"
         if [[ $haveData != 0 ]]; then
             echo -en "Use the ${BLUE}saved${NC} data for ${BLUE}${DEVICE}${NC} changelog? [y]/n > "
@@ -221,6 +207,7 @@ fi
 didError=0
 isTempUpload=0
 isTempOTA=0
+flashArg=""
 i=0
 n=0
 targets=()
@@ -266,6 +253,12 @@ for DEVICE in "${targets[@]}"; do
         [[ $isOTAOnly == 0 ]] && isTempUpload=1
         isOTAOnly=1
         DEVICE=$(echo "$DEVICE" | sed 's/ //g' | sed 's/-o//g')
+    fi
+
+    flashArg=""
+    if [[ -n $(echo "$DEVICE" | grep "\-f") ]]; then
+        flashArg=" -f"
+        DEVICE=$(echo "$DEVICE" | sed 's/ //g' | sed 's/-f//g')
     fi
 
     # print status
@@ -322,9 +315,9 @@ for DEVICE in "${targets[@]}"; do
             fi
             echo -e "$(date)\n${DEVICE} -> started\n" >> $STATUS_FILE
             if [[ $isUploadOnly != 1 ]]; then
-                ./$BUILD_SCRIPT --i-c -u -k --config "${DEVICE}.conf"
+                ./$BUILD_SCRIPT --i-c -u -k --config "${DEVICE}.conf"$flashArg
             else
-                ./$BUILD_SCRIPT -u -k -d --config "${DEVICE}.conf"
+                ./$BUILD_SCRIPT -u -k -d --config "${DEVICE}.conf"$flashArg
             fi
             # !! NO COMMANDS ALLOWED HERE !!
             if [[ $? != 0 ]]; then
@@ -422,9 +415,9 @@ ${fullChangelog}
             echo "Installclean before fastboot pkg"
             lunch "yaap_${DEVICE}-user"
             make installclean
-            ./$BUILD_SCRIPT -u --config "${DEVICE}-fb.conf"
+            ./$BUILD_SCRIPT -u --config "${DEVICE}-fb.conf"$flashArg
         else
-            ./$BUILD_SCRIPT -u -d --config "${DEVICE}-fb.conf"
+            ./$BUILD_SCRIPT -u -d --config "${DEVICE}-fb.conf"$flashArg
         fi
     fi
     ((i++))

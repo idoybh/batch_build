@@ -9,9 +9,9 @@ OTA_BRANCH="full-signed"
 BANNER_REPO="https://github.com/yaap/banners"
 BANNER_BRANCH="master"
 FILE_SERVER="https://mirror.codebucket.de/yaap"
-ANDROID_VERSION="14"
-ANDROID_VERSION_MINOR="0"
-BUILD_CODENAME="Urshanabi"
+ANDROID_VERSION=""
+ANDROID_VERSION_MINOR=""
+BUILD_CODENAME=""
 BUILD_MATCHING="YAAP-*.zip"
 MAX_RETRIES=1
 
@@ -328,6 +328,14 @@ for DEVICE in "${targets[@]}"; do
             fi
             exitCodes+=(0)
             retry_count=0
+            fileName=$(basename -- out/target/product/$DEVICE/$BUILD_MATCHING)
+            ANDROID_VERSION=$(echo "$fileName" | cut -d "-" -f 2)
+            ANDROID_VERSION_MINOR=$(echo $ANDROID_VERSION | cut -d "." -f 2)
+            if [[ $ANDROID_VERSION_MINOR == "" ]] || [[ $ANDROID_VERSION_MINOR == "$ANDROID_VERSION" ]]; then
+                ANDROID_VERSION_MINOR="0"
+            fi
+            BUILD_CODENAME=$(echo "$fileName" | cut -d "-" -f 3)
+
             break
         done
         if [ $retry_count == $MAX_RETRIES ]; then

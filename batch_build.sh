@@ -14,6 +14,7 @@ ANDROID_VERSION_MINOR=""
 BUILD_CODENAME=""
 BUILD_MATCHING="YAAP-*.zip"
 MAX_RETRIES=1
+ENDING_TAG="@idoybh2"
 
 # Colors
 RED="\033[1;31m" # For errors / warnings
@@ -23,6 +24,43 @@ BLUE="\033[1;36m" # For info
 NC="\033[0m" # reset color
 
 # functions
+
+# formats the time passed relative to $start_time and stores it in $buildTime
+buildTime=""
+start_time=$(date +"%s")
+end_time=$(date +"%s")
+get_time()
+{
+  end_time=$(date +"%s")
+  tdiff=$(( end_time - start_time )) # time diff
+
+  # Formatting total build time
+  hours=$(( tdiff / 3600 ))
+  hoursOut=$hours
+  if [[ ${#hours} -lt 2 ]]; then
+    hoursOut="0${hours}"
+  fi
+
+  mins=$(((tdiff % 3600) / 60))
+  minsOut=$mins
+  if [[ ${#mins} -lt 2 ]]; then
+    minsOut="0${mins}"
+  fi
+
+  secs=$((tdiff % 60))
+  if [[ ${#secs} -lt 2 ]]; then
+    secs="0${secs}"
+  fi
+
+  buildTime="" # will store the formatted time to output
+  if [[ $hours -gt 0 ]]; then
+    buildTime="${hoursOut}:${minsOut}:${secs} (hh:mm:ss)"
+  elif [[ $mins -gt 0 ]]; then
+    buildTime="${minsOut}:${secs} (mm:ss)"
+  else
+    buildTime="${secs} seconds"
+  fi
+}
 
 # shellcheck disable=SC2317
 function tg_clean()
@@ -211,6 +249,7 @@ flashArg=""
 i=0
 n=0
 targets=()
+times=()
 . build/envsetup.sh
 if [[ $isDirty != 1 ]] && [[ $isUploadOnly != 1 ]] && [[ $isOTAOnly != 1 ]]; then
     if [[ $isClean != 1 ]]; then
@@ -233,6 +272,7 @@ done 9< $DEVICE_FILE
 ./telegramSend.sh --config $TG_STATUS_CONF "Batch build started for ${n} targets"
 tgTmp="$(mktemp -d)/"
 firstStatus=1
+startMs=$(date +"%s")
 
 # Main loop!!!!!!!!!
 for DEVICE in "${targets[@]}"; do
@@ -273,7 +313,7 @@ for DEVICE in "${targets[@]}"; do
         elif [[ $j -lt $i ]]; then
             if [[ ${exitCodes[$j]} == 0 ]]; then
                 echo -en "${GREEN}"
-                endE="✅"
+                endE="✅ [<code>${times[$j]}</code>]"
             else
                 echo -en "${RED}"
                 endE="❌"
@@ -282,7 +322,6 @@ for DEVICE in "${targets[@]}"; do
         ((j++))
         echo -e "${j}. ${tmp}${NC}"
         statStr="${statStr}${j}. <code>${tmp}</code> ${endE}"
-
     done
 
     if [[ $isResume == 1 ]]; then
@@ -302,6 +341,7 @@ for DEVICE in "${targets[@]}"; do
     fi
 
     # building
+    start_time=$(date +"%s")
     if [[ $isOTAOnly != 1 ]]; then
         retry_count=0
         iO=$(( i + 1 ))
@@ -348,6 +388,8 @@ for DEVICE in "${targets[@]}"; do
         echo -e "$(date)\n${DEVICE} -> done" >> $STATUS_FILE
         echo >> $STATUS_FILE
     fi
+    get_time
+    times+=("$buildTime")
 
     # getting time from the built file
     if [[ $isOTAOnly != 1 ]]; then
@@ -434,6 +476,8 @@ done
 # Ending Theme
 
 # print closing status
+start_time="${startMs}"
+get_time
 echo "!!!! Batch build done !!!!!"
 echo "Results:"
 
@@ -445,7 +489,7 @@ for tmp in "${targets[@]}"; do
     endE=""
     if [[ ${exitCodes[$j]} == 0 ]]; then
         echo -en "${GREEN}"
-        endE="✅"
+        endE="✅ [<code>${times[$j]}</code>]"
     else
         echo -en "${RED}"
         endE="❌"
@@ -459,8 +503,8 @@ ec=$(( n - ec ))
 ./telegramSend.sh --edit --tmp $tgTmp --config $TG_STATUS_CONF "Current status:\n${statStr}"
 
 echo
-echo -e "Built ${BLUE}${ec}${NC} out of ${BLUE}${n}${NC} targets"
-./telegramSend.sh --config $TG_STATUS_CONF "Batch build done. Built ${ec}/${n} targets"
+echo -e "Built ${BLUE}${ec}${NC} out of ${BLUE}${n}${NC} targets in ${buildTime}"
+./telegramSend.sh --config $TG_STATUS_CONF "Batch build done. Built ${ec}/${n} targets in <code>${buildTime}</code>"
 ./telegramSend.sh --unpin --tmp $tgTmp --config $TG_STATUS_CONF " "
 trap - SIGINT
 
@@ -469,5 +513,6 @@ if [[ $didError == 0 ]]; then
     ./telegramSend.sh --config $TG_STATUS_CONF "Spoonfeeding..."
     ./spoonfeed.sh
 fi
+./telegramSend.sh --config $TG_STATUS_CONF "$ENDING_TAG"
 
 exit $didError

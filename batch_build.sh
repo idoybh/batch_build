@@ -13,6 +13,7 @@ ANDROID_VERSION=""
 ANDROID_VERSION_MINOR=""
 BUILD_CODENAME=""
 BUILD_MATCHING="YAAP-*.zip"
+BACKUP_DIR="/run/media/ido/HDD/Backups/yaap-ftp"
 MAX_RETRIES=1
 ENDING_TAG="@idoybh2"
 
@@ -360,6 +361,7 @@ for DEVICE in "${targets[@]}"; do
                 ./$BUILD_SCRIPT -u -k -d --config "${DEVICE}.conf"$flashArg
             fi
             # !! NO COMMANDS ALLOWED HERE !!
+            # shellcheck disable=SC2181
             if [[ $? != 0 ]]; then
                 ((retry_count++))
                 echo -e "$(date)\n${DEVICE} -> failed\n" >> $STATUS_FILE
@@ -375,6 +377,10 @@ for DEVICE in "${targets[@]}"; do
                 ANDROID_VERSION_MINOR="0"
             fi
             BUILD_CODENAME=$(echo "$fileName" | cut -d "-" -f 3)
+            if [[ $BACKUP_DIR != "" ]]; then
+                echo -e "Backing up to ${BLUE}${BACKUP_DIR}${NC} in background!"
+                cp out/target/product/$DEVICE/$BUILD_MATCHING $BACKUP_DIR/$DEVICE/ &
+            fi
 
             break
         done

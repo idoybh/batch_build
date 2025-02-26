@@ -15,7 +15,7 @@ BUILD_CODENAME=""
 BUILD_MATCHING="YAAP-*.zip"
 BACKUP_DIR="/run/media/ido/HDD/Backups/yaap-ftp"
 MAX_RETRIES=1
-ENDING_TAG="@idoybh2"
+ENDING_TAG="@idoybh2 @adrianstech1"
 
 # Colors
 RED="\033[1;31m" # For errors / warnings

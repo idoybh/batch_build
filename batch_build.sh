@@ -110,6 +110,26 @@ while [[ $# -gt 0 ]]; do
             isResume=1
             shift
         ;;
+        --device)
+            # override device file
+            DEVICE_FILE="$2"
+            shift 2
+        ;;
+        --tg-config)
+            # override telegram config file
+            TG_STATUS_CONF="$2"
+            shift 2
+        ;;
+        --etag)
+            # override ending tag
+            ENDING_TAG="$2"
+            shift 2
+        ;;
+        --ota)
+            # override OTA branch
+            OTA_BRANCH="$2"
+            shift 2
+        ;;
     esac
 done
 

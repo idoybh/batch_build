@@ -6,6 +6,7 @@ TG_STATUS_CONF="publicGroup.conf"
 TG_UPDATE_CONF="updates.conf"
 OTA_REPO="https://github.com/yaap/ota-info.git"
 OTA_BRANCH="full-signed"
+OTA_BRANCH_VANILLA="vanilla-signed"
 BANNER_REPO="https://github.com/yaap/banners"
 BANNER_BRANCH="master"
 FILE_SERVER="https://mirror.codebucket.de/yaap"
@@ -128,6 +129,11 @@ while [[ $# -gt 0 ]]; do
         --ota)
             # override OTA branch
             OTA_BRANCH="$2"
+            shift 2
+        ;;
+        --vota)
+            # override vanilla OTA branch
+            OTA_BRANCH_VANILLA="$2"
             shift 2
         ;;
     esac
@@ -271,6 +277,7 @@ i=0
 n=0
 targets=()
 times=()
+hasVanilla=()
 . build/envsetup.sh
 if [[ $isDirty != 1 ]] && [[ $isUploadOnly != 1 ]] && [[ $isOTAOnly != 1 ]]; then
     if [[ $isClean != 1 ]]; then
@@ -288,6 +295,15 @@ while read -r -u9 DEVICE; do
     [[ ${DEVICE:0:1} == '#' ]] && continue
     ((n++))
     targets+=("$DEVICE")
+    nameOnly=$(echo "$DEVICE" | cut -d " " -f 1)
+    if [[ -f "${nameOnly}-vanilla.conf" ]]; then
+        hasVanilla+=("1")
+        hasVanilla+=("0")
+        targets+=("${nameOnly}-vanilla")
+        ((n++))
+    else
+        hasVanilla+=("0")
+    fi
 done 9< $DEVICE_FILE
 
 ./telegramSend.sh --config $TG_STATUS_CONF "Batch build started for ${n} targets"
@@ -321,6 +337,10 @@ for DEVICE in "${targets[@]}"; do
         flashArg=" -f"
         DEVICE=$(echo "$DEVICE" | sed 's/ //g' | sed 's/-f//g')
     fi
+
+    isVanilla=false
+    [[ $DEVICE == *"-vanilla" ]] && isVanilla=true
+    deviceName=$(echo "$DEVICE" | cut -d "-" -f 1)
 
     # print status
     j=0
@@ -399,7 +419,7 @@ for DEVICE in "${targets[@]}"; do
             BUILD_CODENAME=$(echo "$fileName" | cut -d "-" -f 3)
             if [[ $BACKUP_DIR != "" ]]; then
                 echo -e "Backing up to ${BLUE}${BACKUP_DIR}${NC} in background!"
-                cp out/target/product/$DEVICE/$BUILD_MATCHING $BACKUP_DIR/$DEVICE/ &
+                cp out/target/product/$deviceName/$BUILD_MATCHING $BACKUP_DIR/$deviceName/ &
             fi
 
             break
@@ -419,7 +439,7 @@ for DEVICE in "${targets[@]}"; do
 
     # getting time from the built file
     if [[ $isOTAOnly != 1 ]]; then
-        dateNow=$(basename -- out/target/product/$DEVICE/$BUILD_MATCHING | cut -d "-" -f 5 | sed "s/.zip//")
+        dateNow=$(basename -- out/target/product/$deviceName/$BUILD_MATCHING | cut -d "-" -f 5 | sed "s/.zip//")
     else
         dateNow=$(date +%Y%m%d)
         echo -n "Enter a date in (YYYYMMDD) format (empty to use today's): "
@@ -436,16 +456,20 @@ for DEVICE in "${targets[@]}"; do
     else
         cd ota-info || exit 1
         git remote update
-        git reset --hard origin/$OTA_BRANCH
+        if $isVanilla; then
+            git reset --hard origin/$OTA_BRANCH_VANILLA
+        else
+            git reset --hard origin/$OTA_BRANCH
+        fi
     fi # now inside ota-info
     # updating OTA json
-    if [ ! -d "${DEVICE}" ]; then
-        mkdir "${DEVICE}"
+    if [ ! -d "${deviceName}" ]; then
+        mkdir "${deviceName}"
     fi
-    cd "${DEVICE}" || exit 1 # into the device folder
-    rm -f "${DEVICE}.json"
+    cd "${deviceName}" || exit 1 # into the device folder
+    rm -f "${deviceName}.json"
     # copying the new json
-    cp "../../out/target/product/${DEVICE}/${DEVICE}.json" "./${DEVICE}.json"
+    cp "../../out/target/product/${deviceName}/${deviceName}.json" "./${deviceName}.json"
     # generating a new changelog
     rm ./Changelog.txt
     {
@@ -453,23 +477,28 @@ for DEVICE in "${targets[@]}"; do
         cat "../../changelogs/ROM.txt"
         echo
         echo "Device:"
-        cat "../../changelogs/${DEVICE}.txt"
+        cat "../../changelogs/${deviceName}.txt"
     } > Changelog.txt
     fullChangelog="$(cat Changelog.txt)"
     cd .. # back to main ota repo
     # git push
     git add .
-    git -c commit.gpgsign=false commit -m "${DEVICE}: ${dateDashed} update"
-    git push origin HEAD:$OTA_BRANCH
+    git -c commit.gpgsign=false commit -m "${deviceName}: ${dateDashed} update"
+    if $isVanilla; then
+        git push origin HEAD:$OTA_BRANCH_VANILLA
+    else
+        git push origin HEAD:$OTA_BRANCH
+    fi
     cd .. # back to original dir
-    # forcing github to generate raws
-    wget --delete-after "https://raw.githubusercontent.com/yaap/ota-info/${OTA_BRANCH}/${DEVICE}/${DEVICE}.json"
+    if [[ "${hasVanilla[$i]}" == "0" ]]; then
+    romLink="${FILE_SERVER}/${deviceName}"
+    $isVanilla || romLink="${romLink}/YAAP-${ANDROID_VERSION}-${BUILD_CODENAME}-${deviceName}-${dateNow}.zip"
     # channel post
-    realName=$(sed '1q;d' ./changelogs/$DEVICE.info)
-    deviceGroup=$(sed '2q;d' ./changelogs/$DEVICE.info)
+    realName=$(sed '1q;d' ./changelogs/$deviceName.info)
+    deviceGroup=$(sed '2q;d' ./changelogs/$deviceName.info)
     ./telegramSend.sh --config $TG_UPDATE_CONF \
-"<a href=\"${BANNER_REPO}/raw/${BANNER_BRANCH}/${DEVICE}.jpg\">&#8205;</a>\
-New YAAP Build for ${realName} (${DEVICE})
+"<a href=\"${BANNER_REPO}/raw/${BANNER_BRANCH}/${deviceName}.jpg\">&#8205;</a>\
+New YAAP Build for ${realName} (${deviceName})
 
 <b>Details:</b>
 
@@ -482,18 +511,19 @@ ${fullChangelog}
 
 <b>Links:</b>
 
-• ROM: <a href=\"${FILE_SERVER}/${DEVICE}/YAAP-${ANDROID_VERSION}-${BUILD_CODENAME}-${DEVICE}-${dateNow}.zip\">${DEVICE}</a>
+• ROM: <a href=\"${romLink}\">${deviceName}</a>
 • Support: <a href=\"${deviceGroup}\">Group</a>"
     echo -e "$(date)\n${DEVICE} -> posted\n" >> $STATUS_FILE
+    fi # if [[ "${hasVanilla[$i]}" == "0" ]]; then
     # fastboot pkg
-    if [[ -f "${DEVICE}-fb.conf" ]]; then
+    if [[ -f "${deviceName}-fb.conf" ]]; then
         if [[ $isUploadOnly != 1 ]]; then
             echo "Installclean before fastboot pkg"
-            lunch "yaap_${DEVICE}-user"
+            lunch "yaap_${deviceName}-user"
             make installclean
-            ./$BUILD_SCRIPT -u --config "${DEVICE}-fb.conf"$flashArg
+            ./$BUILD_SCRIPT -u --config "${deviceName}-fb.conf"$flashArg
         else
-            ./$BUILD_SCRIPT -u -d --config "${DEVICE}-fb.conf"$flashArg
+            ./$BUILD_SCRIPT -u -d --config "${deviceName}-fb.conf"$flashArg
         fi
     fi
     ((i++))
@@ -534,7 +564,7 @@ echo -e "Built ${BLUE}${ec}${NC} out of ${BLUE}${n}${NC} targets in ${buildTime}
 ./telegramSend.sh --unpin --tmp $tgTmp --config $TG_STATUS_CONF " "
 trap - SIGINT
 
-if [[ $didError == 0 ]]; then
+if [[ $didError == 0 ]] && [[ ! " ${hasVanilla[*]} " =~ " 1 " ]]; then
     echo -e "$(date)\nall done\n" >> $STATUS_FILE
     ./telegramSend.sh --config $TG_STATUS_CONF "Spoonfeeding..."
     ./spoonfeed.sh

@@ -111,6 +111,12 @@ while [[ $# -gt 0 ]]; do
             isResume=1
             shift
         ;;
+        --config)
+            # use a config file containing diff global vars
+            # shellcheck disable=SC1090
+            [ -f "$2" ] && source "$2"
+            shift 2
+        ;;
         --device)
             # override device file
             DEVICE_FILE="$2"

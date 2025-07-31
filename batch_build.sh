@@ -17,6 +17,7 @@ BUILD_MATCHING="YAAP-*.zip"
 BACKUP_DIR="/run/media/ido/HDD/Backups/yaap-ftp"
 MAX_RETRIES=1
 ENDING_TAG="@idoybh2 @adrianstech1"
+POST_IN_STATUS=false
 
 # Colors
 RED="\033[1;31m" # For errors / warnings
@@ -506,8 +507,7 @@ for DEVICE in "${targets[@]}"; do
     # channel post
     realName=$(sed '1q;d' ./changelogs/$deviceName.info)
     deviceGroup=$(sed '2q;d' ./changelogs/$deviceName.info)
-    ./telegramSend.sh --config $TG_UPDATE_CONF \
-"<a href=\"${BANNER_REPO}/raw/${BANNER_BRANCH}/${deviceName}.jpg\">&#8205;</a>\
+    postMsg="<a href=\"${BANNER_REPO}/raw/${BANNER_BRANCH}/${deviceName}.jpg\">&#8205;</a>\
 New YAAP Build for ${realName} (${deviceName})
 
 <b>Details:</b>
@@ -523,6 +523,11 @@ ${fullChangelog}
 
 • ROM: <a href=\"${romLink}\">${deviceName}</a>
 • Support: <a href=\"${deviceGroup}\">Group</a>"
+    ./telegramSend.sh --config $TG_UPDATE_CONF "$postMsg"
+    if $POST_IN_STATUS; then
+        ./telegramSend.sh --tmp "$(mktemp -d)" --pin --config $TG_STATUS_CONF "$postMsg"
+
+    fi
     echo -e "$(date)\n${DEVICE} -> posted\n" >> $STATUS_FILE
     fi # if [[ "${hasVanilla[$i]}" == "0" ]]; then
     # fastboot pkg

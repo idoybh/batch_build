@@ -302,14 +302,15 @@ while read -r -u9 DEVICE; do
     ((n++))
     targets+=("$DEVICE")
     nameOnly=$(echo "$DEVICE" | cut -d " " -f 1)
-    if [[ -f "${nameOnly}-vanilla.conf" ]]; then
-        hasVanilla+=("1")
+    if [[ $DEVICE == *"-vanilla" ]]; then
         hasVanilla+=("0")
-        targets+=("${nameOnly}-vanilla")
-        ((n++))
-    else
-        hasVanilla+=("0")
+        continue
     fi
+    if grep -q "${nameOnly}-vanilla" "$DEVICE_FILE"; then
+        hasVanilla+=("1")
+        continue
+    fi
+    hasVanilla+=("0")
 done 9< $DEVICE_FILE
 
 ./telegramSend.sh --config $TG_STATUS_CONF "Batch build started for ${n} targets"
@@ -345,8 +346,11 @@ for DEVICE in "${targets[@]}"; do
     fi
 
     isVanilla=false
-    [[ $DEVICE == *"-vanilla" ]] && isVanilla=true
-    deviceName=$(echo "$DEVICE" | cut -d "-" -f 1)
+    deviceName="$DEVICE"
+    if [[ $DEVICE == *"-vanilla" ]]; then
+        isVanilla=true
+        deviceName=$(echo "$DEVICE" | cut -d "-" -f 1)
+    fi
 
     # print status
     j=0

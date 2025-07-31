@@ -416,7 +416,7 @@ for DEVICE in "${targets[@]}"; do
             fi
             exitCodes+=(0)
             retry_count=0
-            fileName=$(basename -- out/target/product/$DEVICE/$BUILD_MATCHING)
+            fileName=$(basename -- out/target/product/$deviceName/$BUILD_MATCHING)
             ANDROID_VERSION=$(echo "$fileName" | cut -d "-" -f 2)
             ANDROID_VERSION_MINOR=$(echo $ANDROID_VERSION | cut -d "." -f 2)
             if [[ $ANDROID_VERSION_MINOR == "" ]] || [[ $ANDROID_VERSION_MINOR == "$ANDROID_VERSION" ]]; then
